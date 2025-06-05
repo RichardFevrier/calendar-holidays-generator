@@ -1,0 +1,41 @@
+name: Build and Release Calendar
+
+on:
+  schedule:
+    - cron: '0 0 1 1 *'  # Runs yearly on January 1st at 00:00 UTC
+  workflow_dispatch:     # Also allows manual triggering
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Odin
+        uses: laytan/setup-odin@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          release: latest
+
+      - name: Build
+        run: odin build src -out=calendar-holidays-generator
+
+      - name: Run
+        run: ./calendar-holidays-generator
+
+      - name: Delete release and tag
+        run: gh release delete latest --cleanup-tag --yes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: latest
+          tag_name: latest
+          files: output/*ics
