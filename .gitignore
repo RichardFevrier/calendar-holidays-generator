@@ -1,0 +1,6 @@
+.devenv/
+.devenv.flake.nix
+.direnv/
+
+*.ics
+calendar-holidays-generator*
