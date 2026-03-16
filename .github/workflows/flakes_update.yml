@@ -1,0 +1,43 @@
+name: "Flakes update"
+
+on:
+  workflow_dispatch: # allows manual triggering
+  schedule:
+    - cron: '0 0 * * 0' # runs weekly on Sunday
+
+jobs:
+  nix-flake-update:
+    permissions:
+      contents: write
+      id-token: write
+      issues: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: Build current closure
+        run: nix build .#devShells.x86_64-linux.default -o /tmp/result-before
+      - name: Update flake lock
+        run: nix flake update
+      - name: Build new closure
+        run: nix build .#devShells.x86_64-linux.default -o /tmp/result-after
+      - name: Generate package diff
+        run: |
+          nix store diff-closures /tmp/result-before /tmp/result-after | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' > /tmp/diff.txt
+          echo "DIFF_CONTENT<<EOF" >> $GITHUB_ENV
+          cat /tmp/diff.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - uses: DeterminateSystems/update-flake-lock@main
+        with:
+          pr-title: "Flakes update"
+          pr-labels: |
+            dependencies
+            automated
+          pr-body: |
+            ## Package changes
+            ```
+            ${{ env.DIFF_CONTENT }}
+            ```

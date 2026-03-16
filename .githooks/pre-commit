@@ -1,0 +1,8 @@
+#!/bin/sh
+
+just format
+
+git diff --exit-code || {
+  echo "Files were reformatted. Please re-stage and commit again."
+  exit 1
+}

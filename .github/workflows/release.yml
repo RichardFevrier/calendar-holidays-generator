@@ -15,25 +15,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: cachix/install-nix-action@v31
-      - uses: cachix/cachix-action@v16
-        with:
-          name: devenv
-      - name: Install devenv.sh
-        run: nix profile install nixpkgs#devenv
-      - name: Build the devenv shell and run any pre-commit hooks
-        run: devenv test
 
-      - name: Run a multi-line command in the devenv shell
-        shell: devenv shell bash -- -e {0}
-        run: |
-          prod
-          ./calendar-holidays-generator
+      - name: Build binary
+        run: nix develop --command just prod
+      - name: Run generator
+        run: nix develop --command sh -c './calendar-holidays-generator'
 
       - name: Delete release and tag
         run: gh release delete latest --cleanup-tag --yes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
