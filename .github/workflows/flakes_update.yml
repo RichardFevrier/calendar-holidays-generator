@@ -6,38 +6,141 @@ on:
     - cron: '0 0 * * 0' # runs weekly on Sunday
 
 jobs:
-  nix-flake-update:
+  check:
+    permissions:
+      actions: read
+      contents: read
+    runs-on: ubuntu-latest
+    outputs:
+      should_update: ${{ steps.decision.outputs.should_update }}
+    steps:
+      - name: Get last run of this workflow
+        id: last_run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LAST_RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/flakes_update.yml/runs" \
+            --jq '[.workflow_runs[] | select(.status=="completed")] | .[0]')
+          LAST_RUN_ID=$(echo "$LAST_RUN" | jq -r '.id // ""')
+          echo "Last run ID: $LAST_RUN_ID"
+          CREATED_AT=$(echo "$LAST_RUN" | jq -r '.created_at // ""')
+          echo "created_at=$CREATED_AT" >> $GITHUB_OUTPUT
+
+          if [ -z "$LAST_RUN_ID" ]; then
+            echo "conclusion=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          JOBS=$(gh api "repos/${{ github.repository }}/actions/runs/$LAST_RUN_ID/jobs")
+          UPDATE_JOB_CONCLUSION=$(echo "$JOBS" | jq -r '.jobs[] | select(.name=="update") | .conclusion')
+          echo "conclusion=$UPDATE_JOB_CONCLUSION" >> $GITHUB_OUTPUT
+
+      - name: Check commits since last run
+        id: commit_check
+        if: steps.last_run.outputs.created_at != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMIT_COUNT=$(gh api "repos/${{ github.repository }}/commits?since=${{ steps.last_run.outputs.created_at }}" \
+            --jq 'length')
+          if [ "$COMMIT_COUNT" -gt 0 ]; then
+            echo "has_commits=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Decide
+        id: decision
+        run: |
+          if [ "${{ steps.last_run.outputs.conclusion }}" == "success" ] || [ "${{ steps.commit_check.outputs.has_commits }}" == "true" ]; then
+            echo "should_update=true" >> $GITHUB_OUTPUT
+          fi
+
+  update:
+    needs: check
+    if: needs.check.outputs.should_update == 'true'
     permissions:
       contents: write
       id-token: write
-      issues: write
-      pull-requests: write
     runs-on: ubuntu-latest
+    outputs:
+      did_update: ${{ steps.diff_check.outputs.did_update }}
     steps:
       - uses: actions/checkout@v7
       - uses: DeterminateSystems/determinate-nix-action@v3
 
       - name: Build current closure
         run: nix build .#devShells.x86_64-linux.default -o /tmp/result-before
+
       - name: Update flake lock
         run: nix flake update
+
+      - name: Check if flake.lock actually changed
+        id: diff_check
+        run: |
+          if ! git diff --quiet -- flake.lock; then
+            echo "did_update=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build new closure
+        if: steps.diff_check.outputs.did_update == 'true'
         run: nix build .#devShells.x86_64-linux.default -o /tmp/result-after
+
       - name: Generate package diff
+        if: steps.diff_check.outputs.did_update == 'true'
         run: |
           nix store diff-closures /tmp/result-before /tmp/result-after | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' > /tmp/diff.txt
           echo "DIFF_CONTENT<<EOF" >> $GITHUB_ENV
           cat /tmp/diff.txt >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - uses: DeterminateSystems/update-flake-lock@main
+      - name: Push update branch
+        if: steps.diff_check.outputs.did_update == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B update_flake_lock_action
+          git add flake.lock
+          git commit -m "flake.lock: Update"
+          git push origin update_flake_lock_action --force
+
+  test:
+    needs: update
+    if: needs.update.outputs.did_update == 'true'
+    uses: ./.github/workflows/build.yml
+
+  open_pr:
+    needs: test
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
         with:
-          pr-title: "Flakes update"
-          pr-labels: |
-            dependencies
-            automated
-          pr-body: |
-            ## Package changes
-            ```
-            ${{ env.DIFF_CONTENT }}
-            ```
+          ref: update_flake_lock_action
+
+      - name: Create PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create --repo "${{ github.repository }}" \
+            --title "Flakes update" \
+            --body "Automated flake.lock update. release.yml passed on this branch." \
+            --head update_flake_lock_action \
+            --base main || \
+          gh pr edit update_flake_lock_action \
+            --repo "${{ github.repository }}" \
+            --title "Flakes update" \
+            --body "Automated flake.lock update. release.yml passed on this branch."
+
+  cleanup_on_failure:
+    needs: test
+    if: failure()
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete remote branch on failure
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/update_flake_lock_action" || true
