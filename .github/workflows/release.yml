@@ -2,29 +2,32 @@ name: Build and Release Calendar
 
 on:
   schedule:
-    - cron: '0 0 1 1 *'  # Runs yearly on January 1st at 00:00 UTC
-  workflow_dispatch:     # Also allows manual triggering
-
-permissions:
-  contents: write
+    - cron: '0 0 1 1 *'  # January 1st at 00:00 UTC
+  workflow_dispatch:
 
 jobs:
-  build-and-release:
-    runs-on: ubuntu-latest
+  build:
+    uses: ./.github/workflows/build.yml
 
+  release:
+    needs: build
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v7
-      - uses: cachix/install-nix-action@v31
 
-      - name: Build binary
-        run: nix develop --command just prod
-      - name: Run generator
-        run: nix develop --command sh -c './calendar-holidays-generator'
+      - name: Download calendar artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: calendar-ics-files
+          path: output
 
       - name: Delete release and tag
         run: gh release delete latest --cleanup-tag --yes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Release
         uses: softprops/action-gh-release@v3
         with:

@@ -1,0 +1,30 @@
+name: Build Calendar
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: cachix/install-nix-action@v31
+
+      - name: Build binary
+        run: nix develop --command just prod
+
+      - name: Run generator
+        run: nix develop --command sh -c './calendar-holidays-generator'
+
+      - name: Upload calendar artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: calendar-ics-files
+          path: output/*ics
