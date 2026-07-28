@@ -1,8 +1,10 @@
 #!/bin/sh
 
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+
 just format
 
-git diff --exit-code || {
-  echo "Files were reformatted. Please re-stage and commit again."
+git diff --exit-code -- $STAGED_FILES || {
+  echo "Staged files were reformatted. Please re-stage them and commit again."
   exit 1
 }
