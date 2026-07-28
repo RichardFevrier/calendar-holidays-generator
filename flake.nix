@@ -1,6 +1,7 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs-odin.url = "github:NixOS/nixpkgs/200c8267178b8626971e33e8d9e33bfc3573ebcb";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -8,28 +9,21 @@
     {
       self,
       nixpkgs,
+      nixpkgs-odin,
       flake-utils,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-
-        customOdin = pkgs.odin.overrideAttrs (_: {
-          src = pkgs.fetchgit {
-            url = "https://github.com/odin-lang/Odin.git";
-            rev = "6ef91e2";
-            sha256 = "sha256-kwjiQ7IIBRpnMtQS2zgoHlaimQCdl/3Td+L83l1fhH4=";
-            fetchSubmodules = true;
-          };
-        });
+        odinPkgs = nixpkgs-odin.legacyPackages.${system};
       in
       {
         devShells.default = pkgs.mkShell {
           packages = [
-            customOdin
             pkgs.just
             pkgs.nixfmt
+            odinPkgs.odin
           ];
 
           shellHook = ''
