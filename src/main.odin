@@ -49,7 +49,11 @@ calendar_str_builder :: proc(
 	defer delete(path)
 
 	os.make_directory(dir_name)
-	file, err := os.open(path, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0o644)
+	file, err := os.open(
+		path,
+		os.File_Flags{.Create, .Trunc, .Read, .Write},
+		os.Permissions{.Read_User, .Write_User, .Read_Group, .Read_Other},
+	)
 	defer os.close(file)
 	if err != nil {
 		fmt.eprintln("Failed to create file:", err)
