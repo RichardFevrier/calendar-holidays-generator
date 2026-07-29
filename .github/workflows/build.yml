@@ -2,12 +2,18 @@ name: Build Calendar
 
 on:
   workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
 
 jobs:
   build:
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
 
       - uses: DeterminateSystems/nix-installer-action@v22
       - uses: DeterminateSystems/magic-nix-cache-action@v14

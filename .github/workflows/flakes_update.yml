@@ -108,6 +108,8 @@ jobs:
     needs: update
     if: needs.update.outputs.did_update == 'true'
     uses: ./.github/workflows/build.yml
+    with:
+      ref: update_flake_lock_action
 
   open_pr:
     needs: test
