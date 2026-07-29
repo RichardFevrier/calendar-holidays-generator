@@ -62,40 +62,40 @@ jobs:
       id-token: write
     runs-on: ubuntu-24.04-arm
     outputs:
-      did_update: ${{ steps.diff_check.outputs.did_update }}
+      did_update: ${{ steps.update_flake_lock.outputs.did_update }}
     steps:
       - uses: actions/checkout@v7
 
       - uses: DeterminateSystems/determinate-nix-action@v3
       - uses: DeterminateSystems/magic-nix-cache-action@v14
 
-      - name: Build current closure
-        run: nix build .#devShells.aarch64-linux.default -o /tmp/result-before
-
       - name: Update flake lock
-        run: nix flake update
-
-      - name: Check if flake.lock actually changed
-        id: diff_check
+        id: update_flake_lock
         run: |
+          nix flake update
+
           if ! git diff --quiet -- flake.lock; then
             echo "did_update=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build new closure
-        if: steps.diff_check.outputs.did_update == 'true'
-        run: nix build .#devShells.aarch64-linux.default -o /tmp/result-after
-
-      - name: Generate package diff
-        if: steps.diff_check.outputs.did_update == 'true'
+      - name: Build before and after closures
+        if: steps.update_flake_lock.outputs.did_update == 'true'
         run: |
+          git stash push flake.lock -m "updated-lock"
+
+          nix build .#devShells.aarch64-linux.default -o /tmp/result-before
+
+          git stash pop
+
+          nix build .#devShells.aarch64-linux.default -o /tmp/result-after
+
           nix store diff-closures /tmp/result-before /tmp/result-after | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' > /tmp/diff.txt
           echo "DIFF_CONTENT<<EOF" >> $GITHUB_ENV
           cat /tmp/diff.txt >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
       - name: Push update branch
-        if: steps.diff_check.outputs.did_update == 'true'
+        if: steps.update_flake_lock.outputs.did_update == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
