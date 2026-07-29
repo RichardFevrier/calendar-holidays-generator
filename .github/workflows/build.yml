@@ -15,8 +15,7 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
-      - uses: DeterminateSystems/nix-installer-action@v22
-      - uses: DeterminateSystems/magic-nix-cache-action@v14
+      - uses: cachix/install-nix-action@v31
 
       - name: Build binary
         run: nix develop --command just prod

@@ -66,8 +66,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: DeterminateSystems/nix-installer-action@v22
-      - uses: DeterminateSystems/magic-nix-cache-action@v14
+      - uses: cachix/install-nix-action@v31
 
       - name: Update flake lock
         id: update_flake_lock
