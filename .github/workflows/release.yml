@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Download calendar artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: calendar-ics-files
           path: output
