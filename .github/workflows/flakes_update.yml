@@ -62,7 +62,7 @@ jobs:
       id-token: write
     runs-on: ubuntu-24.04-arm
     outputs:
-      did_update: ${{ steps.update_flake_lock.outputs.did_update }}
+      pkgs_versioning_diff: ${{ steps.pkgs_versioning_diff.outputs.pkgs_versioning_diff }}
     steps:
       - uses: actions/checkout@v7
 
@@ -78,6 +78,7 @@ jobs:
           fi
 
       - name: Build before and after closures
+        id: pkgs_versioning_diff
         if: steps.update_flake_lock.outputs.did_update == 'true'
         run: |
           git stash push flake.lock -m "updated-lock"
@@ -89,10 +90,9 @@ jobs:
           nix build .#devShells.aarch64-linux.default -o /tmp/result-after
 
           nix store diff-closures /tmp/result-before /tmp/result-after | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' > /tmp/diff.txt
-          cat /tmp/diff.txt
-          echo "DIFF_CONTENT<<EOF" >> $GITHUB_ENV
-          cat /tmp/diff.txt >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          echo "pkgs_versioning_diff<<EOF" >> $GITHUB_OUTPUT
+          cat /tmp/diff.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Push update branch
         if: steps.update_flake_lock.outputs.did_update == 'true'
@@ -106,13 +106,13 @@ jobs:
 
   test:
     needs: update
-    if: needs.update.outputs.did_update == 'true'
+    if: needs.update.outputs.pkgs_versioning_diff != ''
     uses: ./.github/workflows/build.yml
     with:
       ref: update_flake_lock_action
 
   open_pr:
-    needs: test
+    needs: [update, test]
     permissions:
       contents: read
       pull-requests: write
@@ -128,13 +128,13 @@ jobs:
         run: |
           gh pr create --repo "${{ github.repository }}" \
             --title "Flakes update" \
-            --body "Automated flake.lock update. release.yml passed on this branch." \
+            --body "${{ needs.update.outputs.pkgs_versioning_diff }}" \
             --head update_flake_lock_action \
             --base main || \
           gh pr edit update_flake_lock_action \
             --repo "${{ github.repository }}" \
             --title "Flakes update" \
-            --body "Automated flake.lock update. release.yml passed on this branch."
+            --body "${{ needs.update.outputs.pkgs_versioning_diff }}"
 
   cleanup_on_failure:
     needs: test
