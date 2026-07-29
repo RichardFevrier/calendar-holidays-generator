@@ -89,6 +89,7 @@ jobs:
           nix build .#devShells.aarch64-linux.default -o /tmp/result-after
 
           nix store diff-closures /tmp/result-before /tmp/result-after | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' > /tmp/diff.txt
+          cat /tmp/diff.txt
           echo "DIFF_CONTENT<<EOF" >> $GITHUB_ENV
           cat /tmp/diff.txt >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
