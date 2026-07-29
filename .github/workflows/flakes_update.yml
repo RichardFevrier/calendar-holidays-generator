@@ -67,7 +67,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: DeterminateSystems/determinate-nix-action@v3
-      - uses: DeterminateSystems/magic-nix-cache-action@v2
+      - uses: DeterminateSystems/magic-nix-cache-action@v14
 
       - name: Build current closure
         run: nix build .#devShells.aarch64-linux.default -o /tmp/result-before
