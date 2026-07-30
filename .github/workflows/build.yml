@@ -1,4 +1,4 @@
-name: Build Calendar
+name: Build
 
 on:
   workflow_call:
@@ -23,8 +23,7 @@ jobs:
       - name: Run generator
         run: nix develop --command sh -c './calendar-holidays-generator'
 
-      - name: Upload calendar artifacts
-        uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7
         with:
           name: calendar-ics-files
           path: output/*ics

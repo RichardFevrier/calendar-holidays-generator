@@ -1,4 +1,4 @@
-name: Build and Release Calendar
+name: Build and Release
 
 on:
   schedule:
@@ -17,19 +17,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Download calendar artifacts
-        uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@v8
         with:
           name: calendar-ics-files
           path: output
 
       - name: Delete release and tag
-        run: gh release delete latest --cleanup-tag --yes
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release delete latest --cleanup-tag --yes || true
 
-      - name: Release
-        uses: softprops/action-gh-release@v3
+      - uses: softprops/action-gh-release@v3
         with:
           name: latest
           tag_name: latest
